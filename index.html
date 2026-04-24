@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Resume Tailor</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: sans-serif; background: #f5f5f3; color: #1a1a1a; min-height: 100vh; padding: 2rem 1rem; }
+  .container { max-width: 900px; margin: 0 auto; }
+  .header { text-align: center; margin-bottom: 2rem; }
+  .header h1 { font-size: 28px; font-weight: 500; letter-spacing: -0.5px; }
+  .header p { color: #666; font-size: 15px; margin-top: 6px; }
+  .badge { display: inline-block; background: #eaf3de; color: #3b6d11; font-size: 12px; padding: 3px 10px; border-radius: 20px; margin-bottom: 10px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .card { background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 12px; padding: 1.25rem; }
+  .card label { display: block; font-size: 13px; font-weight: 500; color: #555; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  textarea { width: 100%; border: 0.5px solid rgba(0,0,0,0.15); border-radius: 8px; padding: 10px 12px; font-size: 14px; font-family: sans-serif; color: #1a1a1a; background: #f9f9f7; resize: vertical; line-height: 1.6; transition: border-color 0.15s; min-height: 200px; }
+  textarea:focus { outline: none; border-color: rgba(0,0,0,0.35); background: #fff; }
+  .btn { display: block; width: 100%; padding: 14px; background: #1a1a1a; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; transition: opacity 0.15s; margin-bottom: 1.25rem; }
+  .btn:hover { opacity: 0.85; }
+  .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  .result-card { background: #fff; border: 0.5px solid rgba(0,0,0,0.12); border-radius: 12px; padding: 1.5rem; display: none; }
+  .result-card.visible { display: block; }
+  .result-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 0.5px solid rgba(0,0,0,0.1); }
+  .result-header span { font-size: 13px; font-weight: 500; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .copy-btn { background: transparent; border: 0.5px solid rgba(0,0,0,0.25); border-radius: 8px; padding: 5px 14px; font-size: 13px; cursor: pointer; color: #1a1a1a; }
+  .copy-btn:hover { background: #f5f5f3; }
+  .result-body { font-size: 14px; line-height: 1.75; color: #1a1a1a; white-space: pre-wrap; font-family: monospace; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .error-msg { background: #fcebeb; color: #a32d2d; border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-bottom: 1rem; display: none; }
+  .error-msg.visible { display: block; }
+  .tips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 1.25rem; }
+  @media (max-width: 640px) { .tips { grid-template-columns: 1fr; } }
+  .tip { background: #f0f0ee; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #666; }
+  .tip strong { display: block; color: #1a1a1a; font-weight: 500; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="badge">AI-Powered</div>
+    <h1>Resume Tailor</h1>
+    <p>Paste your resume and a job description — get a tailored resume in seconds.</p>
+  </div>
+
+  <div class="tips">
+    <div class="tip"><strong>Paste freely</strong>Copy your resume directly from Word, PDF, or Google Docs.</div>
+    <div class="tip"><strong>Full job posting</strong>Include the entire job description for best results.</div>
+    <div class="tip"><strong>Instant output</strong>Your tailored resume streams in real time.</div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <label>Your current resume</label>
+      <textarea id="resume" placeholder="Paste your full resume here...&#10;&#10;Include your work experience, skills, education, and any other relevant sections."></textarea>
+    </div>
+    <div class="card">
+      <label>Job description</label>
+      <textarea id="jobdesc" placeholder="Paste the full job posting here...&#10;&#10;Include the role title, responsibilities, and requirements."></textarea>
+    </div>
+  </div>
+
+  <div class="error-msg" id="error"></div>
+
+  <button class="btn" id="tailorBtn" onclick="tailorResume()">Tailor my resume</button>
+
+  <div class="result-card" id="resultCard">
+    <div class="result-header">
+      <span>Tailored resume</span>
+      <button class="copy-btn" onclick="copyResult()">Copy</button>
+    </div>
+    <div class="result-body" id="resultBody"></div>
+  </div>
+</div>
+
+<script>
+async function tailorResume() {
+  const resume = document.getElementById('resume').value.trim();
+  const jobdesc = document.getElementById('jobdesc').value.trim();
+  const btn = document.getElementById('tailorBtn');
+  const resultCard = document.getElementById('resultCard');
+  const resultBody = document.getElementById('resultBody');
+  const error = document.getElementById('error');
+
+  error.classList.remove('visible');
+
+  if (!resume || !jobdesc) {
+    error.textContent = 'Please paste both your resume and the job description before continuing.';
+    error.classList.add('visible');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Tailoring your resume...';
+  resultCard.classList.remove('visible');
+  resultBody.textContent = '';
+
+  try {
+    // Calls our own backend — API key is hidden on the server
+    const response = await fetch('/api/tailor', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resume, jobdesc })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Something went wrong.');
+    }
+
+    resultCard.classList.add('visible');
+    resultBody.textContent = data.result || 'No result returned.';
+  } catch (err) {
+    error.textContent = err.message || 'Something went wrong. Please try again.';
+    error.classList.add('visible');
+    resultCard.classList.remove('visible');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Tailor my resume';
+  }
+}
+
+function copyResult() {
+  navigator.clipboard.writeText(document.getElementById('resultBody').textContent).then(() => {
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 2000);
+  });
+}
+</script>
+</body>
+</html>
